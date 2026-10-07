@@ -83,9 +83,18 @@ async def populate_queue(workqueue: Workqueue, debug: bool):
 # PROCESS-MODE (WORKER)
 # ------------------------------------------------------------
 async def process_workqueue(workqueue: Workqueue, debug: bool):
-    """Skabelonens worker-flow uden Playwright."""
+    """Indlæser organisationskataloget og behandler derefter køen."""
+    from organisation_catalogue import initialize_organisations
+
     logger = logging.getLogger(__name__)
-    logger.info("Process workqueue mode started (debug=%s)", debug)
+    logger.info(
+        "Process workqueue mode started (debug=%s)",
+        debug,
+    )
+
+    # Fælles opstart. Udføres én gang før første NEXT ITEM.
+    # En fejl her stopper processen uden at hente et work item.
+    initialize_organisations()
 
     for item in _vaelg_items_til_behandling(workqueue):
         with item:
@@ -93,10 +102,15 @@ async def process_workqueue(workqueue: Workqueue, debug: bool):
 
             try:
                 print("================ NEXT ITEM ================")
-                print(f"ITEM = ID: {item.id} - Reference: {item.reference}")
+                print(
+                    f"ITEM = ID: {item.id} - Reference: {item.reference}"
+                )
 
-                # Ingen browser i denne API-baserede version.
-                await behandel_page(item=item, session=None, page=None)
+                await behandel_page(
+                    item=item,
+                    session=None,
+                    page=None,
+                )
 
                 update_item_data(
                     data,
@@ -109,7 +123,6 @@ async def process_workqueue(workqueue: Workqueue, debug: bool):
                 item.complete("Completed")
 
             except WorkItemError as error:
-                # SOFT ERROR: Item fejler, næste item kan behandles.
                 logger.error(
                     "WorkItemError for item %s: %s",
                     item.reference,
@@ -118,7 +131,6 @@ async def process_workqueue(workqueue: Workqueue, debug: bool):
                 item.fail(str(error))
 
             except Exception:
-                # HARD ERROR: Stop hele processen.
                 logger.exception("Uventet fejl")
                 raise
 

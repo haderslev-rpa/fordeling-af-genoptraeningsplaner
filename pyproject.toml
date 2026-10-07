@@ -9,6 +9,7 @@ dependencies = [
     "q-haderslev-vbo",
     "q-cura-api",
     "q-sharepoint-api",
+    "openpyxl>=3.1.5",
 ]
 
 [tool.uv.sources]
