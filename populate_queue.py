@@ -1,196 +1,126 @@
-"""Producer for fordeling-af-genoptraeningsplaner.
-
-Alle søge-, filtrerings- og køoprettelsestrin ligger i dette modul.
-Modulet ændrer ikke data i CURA. Kun nye ATS-workitems oprettes.
-"""
-
+"""Producer: kun GENERALIZED med blank undertype. Ingen ændringer i CURA."""
 import logging
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
-
 import configuration as config
-from q_cura_api.api_client import set_cura_credential
-from q_cura_api.functionality.kommunikation import get_communications_in_period
-from q_cura_api.functionality.opgaver import get_tasks_for_communication
 from q_haderslev_vbo.automation_server.ats_is_item_in_queue import is_item_in_queue
 from q_haderslev_vbo.automation_server.ats_update_item_data import update_item_data
-import configuration as config
 
 LOGGER = logging.getLogger(__name__)
 
 
 def _get_search_period():
-    """Returnerer inkluderet start/slut som ISO-tekst med dansk tidszone."""
-    start_days = config.SEARCH_START_DAYS_AGO
-    end_days = config.SEARCH_END_DAYS_AGO
-    for value in (start_days, end_days):
-        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-            raise ValueError("Søgedage skal være ikke-negative heltal.")
-    if start_days < end_days:
-        raise ValueError("Startdage skal være større end eller lig med slutdage.")
+    start, end = config.SEARCH_START_DAYS_AGO, config.SEARCH_END_DAYS_AGO
+    if any(type(x) is not int or x < 0 for x in (start, end)) or start < end:
+        raise ValueError("Søgedage skal være heltal: start >= slut >= 0.")
 
-    timezone = ZoneInfo(config.SEARCH_TIMEZONE)
-    today = datetime.now(timezone).date()
-    start = datetime.combine(
-        today - timedelta(days=start_days), time.min, tzinfo=timezone
+    tz = ZoneInfo(config.SEARCH_TIMEZONE)
+    today = datetime.now(tz).date()
+    return (
+        datetime.combine(
+            today - timedelta(days=start), time.min, tzinfo=tz
+        ).isoformat(),
+        datetime.combine(
+            today - timedelta(days=end), time.max, tzinfo=tz
+        ).isoformat(),
     )
-    end = datetime.combine(
-        today - timedelta(days=end_days), time.max, tzinfo=timezone
-    ).replace(microsecond=0)
-    return start.isoformat(), end.isoformat()
 
 
-def _required_id(communication, field):
-    """Afviser manglende id i stedet for at oprette et ubrugeligt item."""
-    value = communication.get(field)
+def _required_id(message, key):
+    value = message.get(key)
     if not isinstance(value, str) or not value.strip():
-        raise ValueError(f"Communication mangler {field}.")
+        raise ValueError("Beskeden mangler " + key)
     return value.strip()
 
 
-def _build_box(communication, communication_id):
-    """Gemmer id'er og metadata, ikke beskedindhold eller rå ressourcer.
-
-    Task-id'er findes via borgeren og matches på Communication-reference.
-    Ingen eller flere match gemmes synligt; der vælges ikke vilkårligt én.
-    Worker skal senere hente aktuelle ressourcer og kontrollere relationer.
-    """
-    borger_id = _required_id(communication, "borger_id")
-    result = get_tasks_for_communication(
-        communication_id=communication_id,
-        borger_id=borger_id,
-        count=config.TASK_SEARCH_COUNT,
-        raw=False,
-    )
-    if not isinstance(result, dict) or not isinstance(result.get("tasks"), list):
-        raise RuntimeError("Task-opslaget returnerede et uventet format.")
-    task_ids = []
-    for task in result["tasks"]:
-        if not isinstance(task, dict) or not task.get("task_id"):
-            raise RuntimeError("En returneret opgave mangler task_id.")
-        if task["task_id"] not in task_ids:
-            task_ids.append(task["task_id"])
-
-    return {
-        "communication_id": communication_id,
-        "borger_id": borger_id,
-        "received": communication.get("received") or "",
-        "sent": communication.get("sent") or "",
-        "rehabilitation_type": communication.get("rehabilitation_type") or "",
-        "rehabilitation_subtype": communication.get("rehabilitation_subtype") or "",
-        "task_found": bool(task_ids),
-        "task_count": len(task_ids),
-        "task_ids": task_ids,
-    }
-
-
 async def populate_queue(workqueue, debug=False):
-    """Opretter items for genoptræningsplaner med blank undertype.
+    from q_cura_api.api_client import set_cura_credential
+    from q_cura_api.functionality.kommunikation import get_communications_in_period
+    from q_cura_api.functionality.opgaver import get_tasks_for_communication
 
-    Beskedtypen læses fra configuration.py.
-    Returnerer antal tilføjede og oversprungne beskeder.
-    """
-    received_from, received_to = _get_search_period()
-
-    message_type = config.MESSAGE_TYPE
-    if not isinstance(message_type, str) or not message_type.strip():
-        raise ValueError("MESSAGE_TYPE skal være udfyldt i configuration.py.")
-
-    message_type = message_type.strip()
-
-    # Filtrering og box-struktur er lavet til genoptræningsplaner.
-    # Stop tydeligt, hvis konfigurationen ændres til en anden type.
-    if message_type != "rehabilitation_plan":
-        raise ValueError(
-            "Denne proces understøtter kun genoptræningsplaner. "
-            "MESSAGE_TYPE skal være 'rehabilitation_plan'."
-        )
-
-    queue_id = workqueue.id
-    if isinstance(queue_id, bool) or queue_id is None or int(queue_id) <= 0:
-        raise ValueError("Workqueue mangler et gyldigt teknisk id.")
-
-    count = config.TASK_SEARCH_COUNT
     if (
-        isinstance(count, bool)
-        or not isinstance(count, int)
-        or not 1 <= count <= 1000
+        config.MESSAGE_TYPE != "rehabilitation_plan"
+        or config.REHABILITATION_TYPE != "GENERALIZED"
     ):
-        raise ValueError(
-            "TASK_SEARCH_COUNT skal være et heltal mellem 1 og 1000."
-        )
+        raise ValueError("Denne proces understøtter kun almen genoptræning.")
 
     set_cura_credential(config.CURA_CREDENTIAL_NAME)
-
-    LOGGER.info("Beskedtype fra configuration.py: %s", message_type)
-    LOGGER.info("Søger fra %s til %s", received_from, received_to)
+    start, end = _get_search_period()
 
     result = get_communications_in_period(
-        received_from=received_from,
-        received_to=received_to,
-        message_type=message_type,
+        received_from=start,
+        received_to=end,
+        message_type=config.MESSAGE_TYPE,
+        count=config.COMMUNICATION_SEARCH_COUNT,
         raw=False,
     )
 
+    messages = result.get("communications")
+    if not isinstance(messages, list):
+        raise RuntimeError("Uventet beskedformat.")
+
+    total = result.get("bundle_total")
     if (
-        not isinstance(result, dict)
-        or not isinstance(result.get("communications"), list)
-    ):
+        isinstance(total, int) and total > len(messages)
+    ) or len(messages) >= config.COMMUNICATION_SEARCH_COUNT:
         raise RuntimeError(
-            "Communication-opslaget returnerede et uventet format."
+            "Muligt ufuldstændigt opslag. Forkort søgeperioden; "
+            "pagination skal afklares."
         )
 
-    added = skipped = 0
-    seen = set()
+    added, skipped, seen = 0, 0, set()
 
-    for communication in result["communications"]:
-        if not isinstance(communication, dict):
-            raise RuntimeError("En Communication er ikke en dictionary.")
-
-        if "rehabilitation_subtype" not in communication:
-            raise RuntimeError(
-                "Communication mangler rehabilitation_subtype."
-            )
-
-        if str(communication["rehabilitation_subtype"] or "").strip():
+    for message in messages:
+        if message.get("rehabilitation_type") != config.REHABILITATION_TYPE:
+            skipped += 1
             continue
 
-        reference = _required_id(communication, "communication_id")
+        if "rehabilitation_subtype" not in message:
+            raise RuntimeError("Beskeden mangler rehabilitation_subtype.")
+
+        if str(message["rehabilitation_subtype"] or "").strip():
+            skipped += 1
+            continue
+
+        reference = _required_id(message, "communication_id")
 
         if reference in seen or is_item_in_queue(
-            queue_id=queue_id,
+            queue_id=workqueue.id,
             item_reference=reference,
         ):
             skipped += 1
             continue
 
-        # Find først opgaver, når beskeden ikke allerede er i køen.
-        box = _build_box(communication, reference)
+        borger_id = _required_id(message, "borger_id")
 
-        data = {}
-        update_item_data(
-            data,
-            box_updates=box,
-            update=False,
+        tasks = get_tasks_for_communication(
+            communication_id=reference,
+            borger_id=borger_id,
+            count=config.TASK_SEARCH_COUNT,
+            raw=False,
+        )["tasks"]
+
+        task_ids = list(
+            dict.fromkeys(_required_id(t, "task_id") for t in tasks)
         )
 
-        workqueue.add_item(
-            data=data,
-            reference=reference,
-        )
+        box = {
+            "communication_id": reference,
+            "borger_id": borger_id,
+            "received": message.get("received", ""),
+            "sent": message.get("sent", ""),
+            "rehabilitation_type": message["rehabilitation_type"],
+            "rehabilitation_subtype": message["rehabilitation_subtype"],
+            "task_ids": task_ids,
+            "task_count": len(task_ids),
+            "task_found": bool(task_ids),
+        }
+
+        data = update_item_data({}, box_updates=box, update=False)
+        workqueue.add_item(data=data, reference=reference)
 
         seen.add(reference)
         added += 1
 
-        LOGGER.info(
-            "Tilføjet %s med %s opgaver",
-            reference,
-            box["task_count"],
-        )
-
     LOGGER.info("Tilføjet=%s, oversprunget=%s", added, skipped)
-
-    return {
-        "added": added,
-        "skipped": skipped,
-    }
+    return {"added": added, "skipped": skipped}

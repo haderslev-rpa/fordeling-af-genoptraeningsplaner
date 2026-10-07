@@ -1,31 +1,46 @@
-"""Opsætning for fordeling-af-genoptraeningsplaner."""
-
-# ------------------------------------------------------------
-# CURA-MILJØ
-# ------------------------------------------------------------
+"""Opsætning. Ingen states eller proceslogik."""
 CURA_CREDENTIAL_NAME = "API_CURA"
-
-# ------------------------------------------------------------
-# BESKEDTYPE
-# ------------------------------------------------------------
-# Vi henter genoptræningsplanbeskeder.
-# "rehabilitation_plan" er beskedtypens tekniske navn i q-cura-api.
-#
-# Denne proces filtrerer efterfølgende på blank undertype.
-# Processens øvrige logik er derfor lavet til genoptræningsplaner.
 MESSAGE_TYPE = "rehabilitation_plan"
-
-# ------------------------------------------------------------
-# SØGEPERIODE
-# ------------------------------------------------------------
+REHABILITATION_TYPE = "GENERALIZED"
 SEARCH_TIMEZONE = "Europe/Copenhagen"
-
-# Fra starten af dagen 30 dage tilbage
-# til slutningen af dagen 0 dage tilbage (i dag).
-SEARCH_START_DAYS_AGO = 30
+SEARCH_START_DAYS_AGO = 2
 SEARCH_END_DAYS_AGO = 0
-
-# ------------------------------------------------------------
-# OPGAVEOPSLAG
-# ------------------------------------------------------------
+COMMUNICATION_SEARCH_COUNT = 1000
 TASK_SEARCH_COUNT = 1000
+
+# Kun test: Hver worker-start henter alt igen, også efter retry til NEW.
+TEST_REFRESH_ON_START = True
+COPILOT_SITE = "Automatisering"
+CONFIDENCE_THRESHOLD = 80
+PROMPT_VERSION = "model-b-test-1"
+
+# Udfyld med fagligt godkendte kriterier, når de foreligger.
+APPROVED_CRITERIA = ""
+
+# Foreløbig statusafgrænsning til test. Kontrollér mod jeres CURA-data.
+SERVICE_INCLUDED_STATUSES = ("active", "requested")
+SERVICE_EXCLUDED_STATUSES = ("completed", "cancelled", "entered-in-error")
+
+# Navn -> privat/kommunal/ikke_relevant. Ingen opdigtede leverandører.
+# Ukendte navne giver manuel kandidat i P4, ikke automatisk Træning.
+PROVIDER_TYPES = {}
+PROVIDER_LIST_COMPLETE = False
+
+PROVIDER_DOGN = "Døgnrehabilitering"
+PROVIDER_AFKLARING = "Afklaringsteamet"
+TARGET_AFKLARING = "Afklaringsteamet"
+TARGET_DOGN = "Myndighed - Træning"
+TARGET_SPECIAL = "Patient- og Borgerrettet Team"
+TARGET_MUNICIPAL = "Teamterapeuterne"
+TARGET_DEFAULT = "Træning"
+
+STARTUP_SERVICES = {
+    "Ortopædisk": "Opstartssamtale §140, Ortopædisk",
+    "Neurologisk": "Opstartssamtale §140, Neurologisk",
+    "Medicinsk": "Opstartssamtale §140, Medicinsk",
+    "Psykiatrisk": "Opstartssamtale §140, Psykiatrisk",
+    "Kræft": "Opstartssamtale §140, Kræft",
+}
+
+LEVEL_CODES = {"A": "ADVANCED", "B": "BASIC"}
+LEVEL_NAMES = {"A": "Avanceret niveau", "B": "Basalt niveau"}

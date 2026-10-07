@@ -1,16 +1,18 @@
 [project]
 name = "fordeling-af-genoptraeningsplaner"
-version = "0.1.0"
-description = "Fordeler genoptraeningsplaner fra CURA via Automation Server"
+version = "0.2.0"
+description = "Læsende test af AI-fordeling af almene genoptræningsplaner"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "automation-server-client",
     "q-haderslev-vbo",
     "q-cura-api",
+    "q-sharepoint-api",
 ]
 
 [tool.uv.sources]
 automation-server-client = { git = "https://github.com/odense-rpa/automation-server-client.git", tag = "v0.3.0" }
 q-haderslev-vbo = { git = "https://github.com/haderslev-rpa/q-haderslev-vbo.git", branch = "main" }
 q-cura-api = { git = "https://github.com/haderslev-rpa/q-cura-api.git", branch = "main" }
+q-sharepoint-api = { git = "https://github.com/haderslev-rpa/q-sharepoint-api.git", branch = "main" }

@@ -160,12 +160,13 @@ wheels = [
 
 [[package]]
 name = "fordeling-af-genoptraeningsplaner"
-version = "0.1.0"
+version = "0.2.0"
 source = { virtual = "." }
 dependencies = [
     { name = "automation-server-client" },
     { name = "q-cura-api" },
     { name = "q-haderslev-vbo" },
+    { name = "q-sharepoint-api" },
 ]
 
 [package.metadata]
@@ -173,6 +174,7 @@ requires-dist = [
     { name = "automation-server-client", git = "https://github.com/odense-rpa/automation-server-client.git?tag=v0.3.0" },
     { name = "q-cura-api", git = "https://github.com/haderslev-rpa/q-cura-api.git?branch=main" },
     { name = "q-haderslev-vbo", git = "https://github.com/haderslev-rpa/q-haderslev-vbo.git?branch=main" },
+    { name = "q-sharepoint-api", git = "https://github.com/haderslev-rpa/q-sharepoint-api.git?branch=main" },
 ]
 
 [[package]]
@@ -447,6 +449,15 @@ dependencies = [
     { name = "automation-server-client" },
     { name = "playwright" },
     { name = "psycopg2-binary" },
+    { name = "requests" },
+]
+
+[[package]]
+name = "q-sharepoint-api"
+version = "0.1.0"
+source = { git = "https://github.com/haderslev-rpa/q-sharepoint-api.git?branch=main#4a413663c339abd72bca3111cf6d063dd0860543" }
+dependencies = [
+    { name = "automation-server-client" },
     { name = "requests" },
 ]
 

@@ -146,8 +146,4 @@ if __name__ == "__main__":
     # --------------------------------------------------------
     # PROCESS-MODE
     # --------------------------------------------------------
-    # Midlertidig sikkerhedslås: Kun producer-delen er implementeret.
-    # Fjern dette stop, når behandel.py indeholder den rigtige worker.
-    raise SystemExit("Worker er ikke implementeret endnu. Brug --queue.")
-
     asyncio.run(process_workqueue(workqueue, debug=DEBUG))
