@@ -435,7 +435,7 @@ wheels = [
 [[package]]
 name = "q-cura-api"
 version = "0.1.0"
-source = { git = "https://github.com/haderslev-rpa/q-cura-api.git?branch=main#bd21180f1ddc3af1e3eb856e2a4b827a7f3a193f" }
+source = { git = "https://github.com/haderslev-rpa/q-cura-api.git?branch=main#bf231ec20292ee459fa986fa61bc43cf0efb376e" }
 dependencies = [
     { name = "automation-server-client" },
     { name = "requests" },

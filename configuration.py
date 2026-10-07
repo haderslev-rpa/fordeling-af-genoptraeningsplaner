@@ -1,9 +1,16 @@
 """Opsætning. Ingen states eller proceslogik."""
+
+
+# False: Gem kun vurderingen i ATS.
+# True: Tillad rigtig opdatering af undertypen i det valgte CURA-miljø.
+CURA_SUBTYPE_UPDATE_ENABLED = False
+
+
 CURA_CREDENTIAL_NAME = "API_CURA"
 MESSAGE_TYPE = "rehabilitation_plan"
 REHABILITATION_TYPE = "GENERALIZED"
 SEARCH_TIMEZONE = "Europe/Copenhagen"
-SEARCH_START_DAYS_AGO = 2
+SEARCH_START_DAYS_AGO = 1
 SEARCH_END_DAYS_AGO = 0
 COMMUNICATION_SEARCH_COUNT = 1000
 TASK_SEARCH_COUNT = 1000
