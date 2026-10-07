@@ -299,7 +299,7 @@ def decide(
     input_issues,
     validation_error=None,
 ):
-    """Beregner den vej, robotten ville vælge.
+    """Beregner den vej robotten ville vælge.
 
     Funktionen udfører ingen handlinger i CURA.
     Den returnerer kun en testbeslutning.
@@ -335,6 +335,16 @@ def decide(
             "services mangler en gyldig items-liste."
         )
 
+    if not isinstance(services.get("p4_items"), list):
+        raise ValueError(
+            "services mangler en gyldig p4_items-liste."
+        )
+
+    if not isinstance(services.get("statistics"), dict):
+        raise ValueError(
+            "services mangler gyldig statistik."
+        )
+
     if not isinstance(tasks, list):
         raise TypeError(
             "tasks skal være en liste."
@@ -348,13 +358,15 @@ def decide(
     provider = None
     priority = None
 
-    # Et ugyldigt resultat må aldrig bruges til automatisk behandling.
+    # Et ugyldigt AI-resultat må ikke bruges automatisk.
     if validation_error:
         reasons.append(validation_error)
         ai = None
 
     elif ai is None:
-        reasons.append("AI-resultatet mangler.")
+        reasons.append(
+            "AI-resultatet mangler."
+        )
 
     else:
         try:
@@ -411,6 +423,7 @@ def decide(
         reasons.extend(
             manual_review["mangler"]
         )
+
         reasons.extend(
             manual_review["konflikter"]
         )
@@ -441,77 +454,111 @@ def decide(
                 "Hjerte og kræft kræver afklaring."
             )
 
-    names = {
-        service["performer_name"]
+    # P1 og P3 undersøger alle aktive/fremtidige ydelser.
+    eligible_services = [
+        service
         for service in services["items"]
         if (
             isinstance(service, dict)
             and service.get("eligible") is True
-            and service.get("performer_name")
+        )
+    ]
+
+    eligible_names = {
+        service["performer_name"]
+        for service in eligible_services
+        if (
+            isinstance(
+                service.get("performer_name"),
+                str,
+            )
+            and service["performer_name"].strip()
         )
     }
 
-    if config.PROVIDER_DOGN in names:
+    # P4 undersøger kun ydelser, hvis organization_id
+    # findes i det indlæste hjemmepleje-/plejehjemskatalog.
+    p4_items = [
+        service
+        for service in services["p4_items"]
+        if (
+            isinstance(service, dict)
+            and service.get("eligible") is True
+            and service.get("p4_relevant") is True
+        )
+    ]
+
+    p4_provider_types = {
+        service.get("p4_provider_type")
+        for service in p4_items
+        if service.get("p4_provider_type")
+    }
+
+    allowed_p4_types = {
+        "kommunal",
+        "privat",
+    }
+
+    if not p4_provider_types <= allowed_p4_types:
+        reasons.append(
+            "P4-kataloget indeholder en ugyldig leverandørtype."
+        )
+
+    # P1
+    if config.PROVIDER_DOGN in eligible_names:
         provider = config.TARGET_DOGN
         priority = "P1"
 
+    # P2
     elif ai is not None and (heart or cancer):
         provider = config.TARGET_SPECIAL
         priority = "P2"
 
-    elif config.PROVIDER_AFKLARING in names:
+    # P3
+    elif config.PROVIDER_AFKLARING in eligible_names:
         provider = config.TARGET_AFKLARING
         priority = "P3"
 
+    # P4
     else:
         priority = "P4"
 
-        unknown = (
-            names
-            - config.PROVIDER_TYPES.keys()
-        )
-
-        provider_types = {
-            config.PROVIDER_TYPES[name]
-            for name in names
-            if name in config.PROVIDER_TYPES
-        }
-
-        allowed_provider_types = {
+        if {
             "privat",
             "kommunal",
-            "ikke_relevant",
-        }
-
-        if (
-            unknown
-            or not config.PROVIDER_LIST_COMPLETE
-        ):
+        } <= p4_provider_types:
             reasons.append(
-                "P4-leverandørlisten er ufuldstændig "
-                "eller har ukendte navne."
+                "Både privat og kommunal P4-leverandør."
             )
 
-        elif not provider_types <= allowed_provider_types:
-            reasons.append(
-                "Ugyldig leverandørtype "
-                "i konfigurationen."
-            )
-
-        elif {
-            "privat",
-            "kommunal",
-        } <= provider_types:
-            reasons.append(
-                "Både privat og kommunal leverandør."
-            )
+        elif "kommunal" in p4_provider_types:
+            provider = config.TARGET_MUNICIPAL
 
         else:
-            provider = (
-                config.TARGET_MUNICIPAL
-                if "kommunal" in provider_types
-                else config.TARGET_DEFAULT
-            )
+            # Privat match eller ingen match giver Træning.
+            provider = config.TARGET_DEFAULT
+
+    p4_matches = [
+        {
+            "organization_id": service.get(
+                "organization_id"
+            ),
+            "name": service.get(
+                "performer_name"
+            ),
+            "provider_type": service.get(
+                "p4_provider_type"
+            ),
+            "source_type": service.get(
+                "p4_source_type"
+            ),
+            "root_names": service.get(
+                "p4_root_names",
+                [],
+            ),
+        }
+        for service in p4_items
+    ]
 
     return {
         "dry_run": True,
@@ -532,6 +579,15 @@ def decide(
         "startup_service_candidate": (
             config.STARTUP_SERVICES.get(area)
         ),
+        "p4_control": {
+            "matched_organizations": p4_matches,
+            "matched_provider_types": sorted(
+                p4_provider_types
+            ),
+            "statistics": dict(
+                services["statistics"]
+            ),
+        },
         "cura_actions_performed": False,
         "mail_sent": False,
     }
