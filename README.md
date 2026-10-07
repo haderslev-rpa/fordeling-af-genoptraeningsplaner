@@ -1,21 +1,21 @@
-## How to use this template
+# fordeling-af-genoptraeningsplaner
 
-The repository has been tagged as a template repository. This means you can create a new repository based on this code using the [GitHub instructions](https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-repository-from-a-template)
+## Queue-delen
 
+Kør producer-delen sådan:
 
-### Alternative method: checkout the repository and remove git bindings
-Replace `<new-folder-name>` with your desired folder name:
-```sh
-git clone https://github.com/odense-rpa/process-template.git <new-folder-name>
-
-cd <new-folder-name>
-
-rm -rf .git
-git init
-git add .
-git commit -m "Initial commit from process-template"
-
-git remote add origin <new-repo-url>
-git push -u origin main
+```bash
+uv run python main.py --queue
 ```
 
+Producer-delen:
+
+1. Beregner søgeperioden fra `configuration.py`.
+2. Henter genoptræningsplaner fra CURA.
+3. Beholder kun planer med blank `rehabilitation_subtype`.
+4. Finder tilknyttede `CuraSimpleTask`-id'er.
+5. Kontrollerer via `q-haderslev-vbo`, om Communication-id allerede
+   findes som reference i køen.
+6. Opretter kun nye work items.
+
+Worker-delen er ikke implementeret i denne første version.
